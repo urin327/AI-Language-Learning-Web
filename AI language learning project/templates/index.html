@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Language Camera</title>
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#eef1f6;color:#202431}
+header{background:#fff;border-bottom:1px solid #dfe3eb;padding:14px 5%;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+main{max-width:1150px;margin:auto;padding:28px 20px}
+.hero{margin-bottom:20px}
+.tag{color:#3730a3;font-weight:bold;font-size:12px}
+h1{font-size:36px;margin:8px 0}
+.sub{color:#737b8c}
+.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
+.card{background:#fff;border:1px solid #dfe3eb;border-radius:18px;padding:16px;margin-bottom:18px;box-shadow:0 8px 25px #0000000b}
+.cam{position:relative;background:#181b23;border-radius:14px;overflow:hidden;aspect-ratio:4/3}
+.cam video{width:100%;height:100%;object-fit:cover}
+.cam canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.guide{position:absolute;inset:13%;border:1px dashed #ffffff80;border-radius:12px}
+.buttons{display:grid;grid-template-columns:1fr 55px;gap:9px;margin-top:12px}
+button{border:1px solid #dfe3eb;background:#fff;border-radius:10px;padding:12px;cursor:pointer;font-weight:bold}
+button:disabled{opacity:.6;cursor:wait}
+.primary{background:#4f46e5;color:#fff}
+.result{border:1px solid #dfe3eb;border-radius:13px;padding:14px;margin-top:10px}
+.en{font-size:19px;font-weight:bold}
+.ko{font-size:28px;font-weight:bold;margin-top:5px}
+.confidence{color:#16a34a;font-size:11px;float:right}
+.bar{height:6px;background:#e8ebf1;border-radius:8px;margin:10px 0}
+.fill{height:100%;background:#4f46e5;border-radius:8px}
+.speak{width:100%;background:#eef0ff;color:#3730a3;margin-top:5px}
+.speak:active{background:#dfe3ff}
+.speak-status{font-size:12px;color:#737b8c;margin-top:7px;min-height:16px}
+.empty{text-align:center;padding:35px;color:#737b8c}
+.xpbox{background:#f6f7fb;padding:12px;border-radius:12px}
+.xprow{display:flex;justify-content:space-between;font-size:12px;font-weight:bold}
+.xpbar{height:8px;background:#ddd;border-radius:8px;margin-top:8px}
+.xpf{height:100%;background:#4f46e5;width:0;border-radius:8px}
+.words{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.word{border:1px solid #dfe3eb;border-radius:9px;padding:8px;font-size:12px}
+.answers{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.msg{min-height:20px;font-weight:bold;font-size:12px;margin:8px 0}
+@media(max-width:850px){.grid{grid-template-columns:1fr}}
+@media(max-width:550px){h1{font-size:29px}.answers{grid-template-columns:1fr}}
+
+/* LEVEL-UP POPUP */
+.level-modal{display:none;position:fixed;inset:0;background:#171827aa;z-index:9999;align-items:center;justify-content:center;padding:20px}
+.level-modal.show{display:flex}
+.level-modal-box{width:min(420px,100%);background:#fff;border-radius:24px;padding:28px;text-align:center;box-shadow:0 20px 60px #0003;animation:popIn .25s ease-out}
+.level-icon{font-size:54px;margin-bottom:8px}
+.level-modal-box h2{margin:8px 0;color:#4f46e5;font-size:30px}
+.level-modal-box p{color:#626b7d;line-height:1.5}
+.level-modal-box button{width:100%;margin-top:12px}
+.quiz-input{width:100%;padding:12px;border:1px solid #dfe3eb;border-radius:10px;font-size:16px;margin-top:8px}
+@keyframes popIn{from{transform:scale(.88);opacity:0}to{transform:scale(1);opacity:1}}
+</style>
+</head>
+
+<body>
+<header>
+<b>🤖 AI Language Camera</b>
+<span>● AI Korean Vocabulary Learning</span>
+</header>
+
+<main>
+<section class="hero">
+<div class="tag">AI KOREAN VOCABULARY LEARNING</div>
+<h1>Learn Korean from the world around you.</h1>
+<p class="sub">Object recognition → Korean vocabulary → pronunciation → saved words → quiz</p>
+</section>
+
+<div class="grid">
+<section>
+<div class="card">
+<h3>📷 Object Scanner</h3>
+<p class="sub">Place an object inside the guide and capture it.</p>
+
+<div class="cam">
+<video id="camera" autoplay playsinline muted></video>
+<canvas id="overlay"></canvas>
+<div class="guide"></div>
+</div>
+
+<div class="buttons">
+<button class="primary" id="capture">Capture & Learn</button>
+<button id="switch">↔</button>
+</div>
+</div>
+
+<div class="card">
+<h3>🏆 Learning Progress</h3>
+<div class="xpbox">
+<div class="xprow">
+<span id="level">Level 1 · Beginner</span>
+<span id="xp">0 / 100 XP</span>
+</div>
+<div class="xpbar"><div class="xpf" id="xpf"></div></div>
+</div>
+<div id="words" class="words"></div>
+<button id="reset" style="margin-top:10px">Reset Progress</button>
+</div>
+</section>
+
+<section>
+<div class="card">
+<h3>📚 Learning Result
+<span id="count" style="float:right;font-size:11px;color:#3730a3">0 objects</span>
+</h3>
+
+<label for="languageSelect" style="display:block;font-size:13px;font-weight:bold;margin:10px 0 6px">Learning language</label>
+<select id="languageSelect" style="width:100%;padding:10px;border:1px solid #dfe3eb;border-radius:10px;margin-bottom:12px">
+  <option value="ko">Korean 🇰🇷</option>
+  <option value="mn">Mongolian 🇲🇳</option>
+</select>
+<div id="empty" class="empty">📷<br>Capture an object to learn its Korean or Mongolian translation.</div>
+<div id="loading" class="empty" style="display:none">⏳ AI is analyzing...</div>
+<div id="results"></div>
+</div>
+
+<div class="card">
+<h3>🎮 Quick Quiz</h3>
+<p class="sub">Review your saved vocabulary.</p>
+<div id="quizQuestion" style="font-weight:bold;margin:12px 0">Capture an object to unlock the quiz.</div>
+<div id="answers" class="answers"></div>
+<div id="msg" class="msg"></div>
+<button id="newQuiz" class="primary" style="width:100%">New Question</button>
+</div>
+</section>
+</div>
+</main>
+
+
+<div id="levelModal" class="level-modal" role="dialog" aria-modal="true" aria-labelledby="levelModalTitle">
+  <div class="level-modal-box">
+    <div class="level-icon" id="levelModalIcon">🏆</div>
+    <div style="font-weight:bold;color:#e6a817;letter-spacing:2px">LEVEL UP!</div>
+    <h2 id="levelModalTitle">Level 2</h2>
+    <p id="levelModalText">새로운 레벨에 도달했어요!</p>
+    <button class="primary" id="closeLevelModal">Continue learning ✨</button>
+  </div>
+</div>
+\n<script>
+const video = document.getElementById('camera');
+const overlay = document.getElementById('overlay');
+const languageSelect = document.getElementById('languageSelect');
+
+let stream = null;
+let back = true;
+let language = localStorage.getItem('aiTargetLang') || 'ko';
+languageSelect.value = language;
+
+/* Keep Korean progress intact and store Mongolian progress separately. */
+const vocabStorageKey = () => language === 'mn' ? 'aiVocabMn' : 'aiVocab';
+const xpStorageKey = () => language === 'mn' ? 'aiXPMn' : 'aiXP';
+let vocab = JSON.parse(localStorage.getItem(vocabStorageKey()) || '{}');
+let xp = Number(localStorage.getItem(xpStorageKey())) || 0;
+
+const levelNames = ['Beginner', 'Explorer', 'Scholar', 'Master', 'Expert'];
+const levelIcons = ['🌱', '🧭', '📚', '🏆', '💎'];
+const levelMessages = [
+    '첫 번째 단계를 시작했어요. 계속 단어를 모아보세요!',
+    '새로운 단어 탐험가가 되었어요!',
+    '어휘 실력이 꾸준히 성장하고 있어요!',
+    '정말 훌륭해요! 더 어려운 퀴즈에 도전해 보세요!',
+    '최고 레벨에 도달했어요! 대단해요!'
+];
+
+function levelFor(value) { return Math.floor(value / 100) + 1; }
+
+/* CAMERA */
+function camera() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+
+    navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: back ? 'environment' : 'user' } },
+        audio: false
+    })
+    .catch(() => navigator.mediaDevices.getUserMedia({video: true, audio: false}))
+    .then(s => {
+        stream = s;
+        video.srcObject = s;
+        return video.play();
+    })
+    .catch(() => alert('Camera permission is required.'));
+}
+
+document.getElementById('switch').onclick = () => {
+    back = !back;
+    camera();
+};
+
+languageSelect.addEventListener('change', () => {
+    language = languageSelect.value;
+    localStorage.setItem('aiTargetLang', language);
+    vocab = JSON.parse(localStorage.getItem(vocabStorageKey()) || '{}');
+    xp = Number(localStorage.getItem(xpStorageKey())) || 0;
+    render();
+    newQuiz();
+    const results = document.getElementById('results');
+    if (results.children.length) {
+        results.querySelectorAll('.result').forEach((card, i) => {
+            const en = card.dataset.english;
+            const item = lastDetection.find(x => x.english === en);
+            if (item) card.innerHTML = resultCardContent(item, i);
+        });
+        attachSpeechButtons(lastDetection);
+    }
+});
+
+/* CAPTURE AND DETECT */
+let lastDetection = [];
+document.getElementById('capture').onclick = async () => {
+    if (!video.videoWidth) {
+        alert('Camera is not ready.');
+        return;
+    }
+
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('empty').style.display = 'none';
+    document.getElementById('results').innerHTML = '';
+
+    const c = document.createElement('canvas');
+    c.width = video.videoWidth;
+    c.height = video.videoHeight;
+    c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+
+    c.toBlob(async b => {
+        try {
+            const f = new FormData();
+            f.append('image', b, 'capture.jpg');
+            const r = await fetch('/detect', {method: 'POST', body: f});
+            if (!r.ok) throw new Error('Detection request failed');
+
+            const data = await r.json();
+            if (!data.length) return noObject();
+
+            lastDetection = data;
+            show(data);
+            data.forEach(x => saveWord(x.english, x.korean, x.mongolian, x.mongolian_pronunciation_ko));
+            draw(data, c.width, c.height);
+            newQuiz();
+        } catch (e) {
+            console.error(e);
+            document.getElementById('results').innerHTML =
+                '<div class="empty">Detection failed. Try again.</div>';
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
+    }, 'image/jpeg', 0.9);
+};
+
+/* RESULT CARD */
+function resultCardContent(x, i) {
+    const isMn = language === 'mn';
+    return `
+        <span class="confidence">${x.confidence}%</span>
+        <small>ENGLISH</small>
+        <div class="en">${esc(x.english)}</div>
+        <small>한국어</small>
+        <div class="ko">${esc(x.korean)}</div>
+        ${isMn ? `
+            <small>Монгол</small>
+            <div class="ko">${esc(x.mongolian || x.english)}</div>
+            <small>한국어 발음 (몽골어)</small>
+            <div>${esc(x.mongolian_pronunciation_ko || '')}</div>
+        ` : ''}
+        <div class="bar"><div class="fill" style="width:${x.confidence}%"></div></div>
+        <button type="button" class="speak" data-index="${i}">
+            🔊 ${isMn ? '몽골어 발음 (한국어 표기) 듣기' : '한국어 발음 듣기'}
+        </button>
+        <div class="speak-status" aria-live="polite"></div>
+    `;
+}
+
+function show(data) {
+    document.getElementById('count').textContent =
+        data.length + ' object' + (data.length > 1 ? 's' : '');
+    document.getElementById('results').innerHTML = data.map((x, i) =>
+        `<div class="result" data-english="${esc(x.english)}">${resultCardContent(x, i)}</div>`
+    ).join('');
+    attachSpeechButtons(data);
+}
+
+function attachSpeechButtons(data) {
+    document.querySelectorAll('.speak').forEach((button, i) => {
+        button.onclick = function() {
+            const status = this.parentElement.querySelector('.speak-status');
+            const item = data[Number(this.dataset.index)] || data[i];
+            const speechText = language === 'mn'
+                ? (item.mongolian_pronunciation_ko || item.mongolian)
+                : item.korean;
+            speak(speechText, status);
+        };
+    });
+}
+
+/* Korean speech synthesis reads Korean words and Hangul pronunciation guides. */
+let koreanVoice = null;
+function loadKoreanVoice() {
+    if (!('speechSynthesis' in window)) return;
+    const voices = window.speechSynthesis.getVoices();
+    koreanVoice =
+        voices.find(v => v.name.includes('Microsoft SunHi Online')) ||
+        voices.find(v => v.name.includes('Microsoft Hyunsu Online')) ||
+        voices.find(v => v.name.includes('Microsoft InJoon Online')) ||
+        voices.find(v => v.lang.toLowerCase() === 'ko-kr') ||
+        voices.find(v => v.lang.toLowerCase().startsWith('ko')) ||
+        null;
+}
+if ('speechSynthesis' in window) {
+    loadKoreanVoice();
+    window.speechSynthesis.addEventListener('voiceschanged', loadKoreanVoice);
+}
+
+function speak(text, statusElement) {
+    if (!('speechSynthesis' in window) ||
+        typeof SpeechSynthesisUtterance === 'undefined') {
+        if (statusElement) statusElement.textContent = '이 브라우저에서는 음성 기능을 지원하지 않습니다.';
+        alert('This browser does not support speech playback.');
+        return;
+    }
+    const cleanText = String(text || '').trim();
+    if (!cleanText) {
+        if (statusElement) statusElement.textContent = '읽을 단어가 없습니다.';
+        return;
+    }
+
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    loadKoreanVoice();
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = koreanVoice ? koreanVoice.lang : 'ko-KR';
+    utterance.rate = 0.85;
+    utter.pitch = 1;
+    utter.volume = 1;
+    if (koreanVoice) utterance.voice = koreanVoice;
+    utterance.onstart = () => { if (statusElement) statusElement.textContent = '🔊 발음 재생 중...'; };
+    utterance.onend = () => { if (statusElement) statusElement.textContent = '재생 완료'; };
+    utterance.onerror = event => {
+        if (statusElement) statusElement.textContent = '음성 재생에 실패했습니다. 다시 눌러 주세요.';
+        console.error('Speech error:', event.error);
+    };
+    try {
+        synth.resume();
+        synth.speak(utterance);
+    } catch (error) {
+        console.error('Speech playback error:', error);
+        if (statusElement) statusElement.textContent = '음성 재생에 실패했습니다. 다시 시도해 주세요.';
+    }
+}
+
+/* XP / LEVEL-UP */
+function showLevelUp(level) {
+    const index = Math.min(level - 1, levelNames.length - 1);
+    document.getElementById('levelModalIcon').textContent = levelIcons[index];
+    document.getElementById('levelModalTitle').textContent = `Level ${level} · ${levelNames[index]}`;
+    document.getElementById('levelModalText').textContent =
+        levelMessages[index] || '계속 학습해서 어휘력을 키워보세요!';
+    document.getElementById('levelModal').classList.add('show');
+}
+document.getElementById('closeLevelModal').onclick = () =>
+    document.getElementById('levelModal').classList.remove('show');
+
+function addXP(amount) {
+    const oldLevel = levelFor(xp);
+    xp += amount;
+    localStorage.setItem(xpStorageKey(), xp);
+    render();
+    const newLevel = levelFor(xp);
+    if (newLevel > oldLevel) showLevelUp(newLevel);
+}
+
+/* SAVE VOCABULARY */
+function saveWord(en, ko, mn, mnPron) {
+    const isNew = !vocab[en];
+    vocab[en] = {ko: ko, mn: mn, mnPron: mnPron};
+    localStorage.setItem(vocabStorageKey(), JSON.stringify(vocab));
+    if (isNew) addXP(10);
+    else render();
+}
+
+function render() {
+    const l = levelFor(xp);
+    const n = xp % 100;
+    const index = Math.min(l - 1, levelNames.length - 1);
+    document.getElementById('level').textContent = `Level ${l} · ${levelNames[index]}`;
+    document.getElementById('xp').textContent = `${n} / 100 XP`;
+    document.getElementById('xpf').style.width = n + '%';
+
+    const keys = Object.keys(vocab);
+    document.getElementById('words').innerHTML = keys.length
+        ? keys.slice(-12).reverse().map(en => {
+            const word = language === 'mn' ? vocab[en].mn : vocab[en].ko;
+            return `<div class="word"><b>${esc(word || '')}</b> · ${esc(en)}</div>`;
+          }).join('')
+        : '<span class="sub">Saved words appear here.</span>';
+}
+
+/* QUIZ
+   Korean mode: English -> Korean (levels 1-3 multiple choice; levels 4-5 typing).
+   Mongolian mode: Korean -> Mongolian (levels 1-3 multiple choice; levels 4-5 typing).
+   Correct answers award +5 XP and automatically move to the next question.
+*/
+let quizAnswered = false;
+let quizTimer = null;
+
+function newQuiz() {
+    if (quizTimer) clearTimeout(quizTimer);
+    quizAnswered = false;
+    const keys = Object.keys(vocab);
+    const question = document.getElementById('quizQuestion');
+    const answers = document.getElementById('answers');
+    const msg = document.getElementById('msg');
+    msg.textContent = '';
+
+    if (!keys.length) {
+        question.textContent = 'Capture an object to unlock the quiz.';
+        answers.innerHTML = '';
+        return;
+    }
+
+    const correct = keys[Math.floor(Math.random() * keys.length)];
+    const level = levelFor(xp);
+    const isMn = language === 'mn';
+    const correctLabel = isMn ? (vocab[correct].mn || '') : (vocab[correct].ko || '');
+
+    if (isMn) {
+        question.textContent = `한국어 "${vocab[correct].ko}" 의 몽골어 뜻은?`;
+    } else if (level <= 1) {
+        question.textContent = `What is "${correct}" in Korean?`;
+    } else {
+        question.textContent = `Which English word means "${vocab[correct].ko}"?`;
+    }
+
+    if (level >= 4) {
+        question.textContent = isMn
+            ? `한국어 "${vocab[correct].ko}" 의 몽골어 뜻을 입력하세요.`
+            : (level >= 5
+                ? `Type the Korean meaning of "${correct}".`
+                : `Type the English word for "${vocab[correct].ko}".`);
+        answers.innerHTML = `
+            <input id="quizInput" class="quiz-input"
+                placeholder="${isMn ? 'Монгол орчуулгыг бичнэ үү' : (level >= 5 ? '한국어 뜻 입력' : 'Type in English')}"
+                autocomplete="off">
+            <button id="checkTyped" class="primary" style="grid-column:1/-1">Check answer</button>`;
+        document.getElementById('checkTyped').onclick = () => {
+            if (quizAnswered) return;
+            const val = document.getElementById('quizInput').value.trim().toLowerCase();
+            const expected = (isMn ? vocab[correct].mn : (level >= 5 ? vocab[correct].ko : correct)) || '';
+            if (val === expected.trim().toLowerCase()) correctAnswer();
+            else {
+                msg.textContent = `❌ ${isMn ? 'Зөв хариулт' : '정답'}: ${expected}`;
+            }
+        };
+        return;
+    }
+
+    let opts = [
+        correct,
+        ...keys.filter(x => x !== correct).sort(() => Math.random() - 0.5).slice(0, 3)
+    ].sort(() => Math.random() - 0.5);
+
+    if (isMn) {
+        question.textContent = `한국어 "${vocab[correct].ko}" 의 몽골어 뜻은?`;
+        answers.innerHTML = opts.map(x =>
+            `<button data-k="${esc(x)}">${esc(vocab[x].mn || '')}</button>`
+        ).join('');
+    } else if (level === 1) {
+        question.textContent = `What is "${correct}" in Korean?`;
+        answers.innerHTML = opts.map(x =>
+            `<button data-k="${esc(x)}">${esc(vocab[x].ko || '')}</button>`
+        ).join('');
+    } else {
+        question.textContent = `Which English word means "${vocab[correct].ko}"?`;
+        answers.innerHTML = opts.map(x =>
+            `<button data-k="${esc(x)}">${esc(x)}</button>`
+        ).join('');
+    }
+
+    document.querySelectorAll('#answers button[data-k]').forEach(button => {
+        button.onclick = () => {
+            if (quizAnswered) return;
+            if (button.dataset.k === correct) correctAnswer();
+            else {
+                msg.textContent = `❌ ${isMn ? 'Зөв хариулт' : '정답'}: ${
+                    isMn ? vocab[correct].mn : (level === 1 ? vocab[correct].ko : correct)
+                }`;
+            }
+        };
+    });
+
+    function correctAnswer() {
+        quizAnswered = true;
+        document.querySelectorAll('#answers button').forEach(b => b.disabled = true);
+        const message = isMn ? '✅ Зөв! +5 XP' : '✅ 정답! +5 XP';
+        msg.textContent = message;
+        addXP(5);
+        quizTimer = setTimeout(newQuiz, 1100);
+    }
+}
+
+document.getElementById('newQuiz').onclick = newQuiz;
+
+/* RESET PROGRESS */
+document.getElementById('reset').onclick = () => {
+    vocab = {};
+    xp = 0;
+    localStorage.removeItem(vocabStorageKey());
+    localStorage.removeItem(xpStorageKey());
+    render();
+    newQuiz();
+};
+
+/* DRAW DETECTION BOXES */
+function draw(d, w, h) {
+    overlay.width = video.clientWidth;
+    overlay.height = video.clientHeight;
+    const c = overlay.getContext('2d');
+    const sx = overlay.width / w;
+    const sy = overlay.height / h;
+    c.clearRect(0, 0, overlay.width, overlay.height);
+    d.forEach(x => {
+        if (x.x1 == null) return;
+        c.strokeStyle = 'white';
+        c.lineWidth = 3;
+        c.strokeRect(x.x1 * sx, x.y1 * sy, (x.x2 - x.x1) * sx, (x.y2 - x.y1) * sy);
+    });
+}
+
+function noObject() {
+    document.getElementById('empty').style.display = 'block';
+    document.getElementById('empty').innerHTML = '🔍<br>No object detected';
+    document.getElementById('count').textContent = '0 objects';
+}
+
+/* SAFE HTML TEXT */
+function esc(t) {
+    return String(t ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+render();
+newQuiz();
+camera();
+</script>
+</body>
+</html>
